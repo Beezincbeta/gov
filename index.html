@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multi-File Data Analyzer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
+        
+        body { font-family: 'Inter', sans-serif; }
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; height: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        .tab-active { border-bottom: 3px solid #2563eb; color: #2563eb; font-weight: 800; }
+        
+        /* التحسين للهواتف */
+        @media (max-width: 640px) {
+            .tab-btn { font-size: 0.75rem; padding: 0.5rem 0.25rem; }
+            .chart-container { height: 750px !important; }
+        }
+    </style>
+</head>
+<body class="bg-slate-50 min-h-screen text-slate-900" dir="rtl">
+
+    <div class="max-w-7xl mx-auto px-2 sm:px-4 py-4 sm:py-8">
+        <!-- Header -->
+        <header class="mb-6 text-center">
+            <h1 class="text-2xl sm:text-4xl font-extrabold text-slate-800 tracking-tight">محلل البيانات الذكي</h1>
+            <p class="text-slate-500 text-sm mt-1">تحليل ومقارنة البيانات بدقة عالية</p>
+        </header>
+
+        <!-- Tabs Navigation -->
+        <div class="flex justify-around sm:justify-center mb-6 border-b border-slate-200 sticky top-0 bg-slate-50 z-20">
+            <button onclick="switchTab('tab1')" id="btn-tab1" class="tab-btn px-2 sm:px-6 py-3 transition-all tab-active">New User</button>
+            <button onclick="switchTab('tab2')" id="btn-tab2" class="tab-btn px-2 sm:px-6 py-3 transition-all text-slate-400">Pending Physical</button>
+            <button onclick="switchTab('tab3')" id="btn-tab3" class="tab-btn px-2 sm:px-6 py-3 transition-all text-slate-400 flex items-center gap-1">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
+                المقارنة
+            </button>
+        </div>
+
+        <main>
+            <!-- Tab 1 -->
+            <div id="tab1" class="tab-content">
+                <section class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                    <div class="lg:col-span-1">
+                        <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
+                            <h3 class="font-bold text-blue-700 mb-4">بيانات New User</h3>
+                            <input type="file" onchange="handleFileUpload(event, '1')" accept=".csv" class="block w-full text-sm border rounded-lg p-2 bg-slate-50 mb-4" />
+                            <div id="filterArea1" class="hidden space-y-4">
+                                <select id="govFilter1" onchange="applyFilter('1')" class="w-full p-2 border rounded-lg"></select>
+                                <div class="p-4 bg-blue-50 rounded-xl">
+                                    <p class="text-xs text-blue-600 font-bold uppercase">الإجمالي</p>
+                                    <p id="rowCount1" class="text-2xl font-black text-blue-800">0</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="lg:col-span-2">
+                        <div id="chartBox1" class="hidden bg-white p-4 rounded-2xl border h-[450px]">
+                            <canvas id="canvas1"></canvas>
+                        </div>
+                    </div>
+                </section>
+            </div>
+
+            <!-- Tab 2 -->
+            <div id="tab2" class="tab-content hidden">
+                <section class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                    <div class="lg:col-span-1">
+                        <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
+                            <h3 class="font-bold text-purple-700 mb-4">بيانات Pending Physical</h3>
+                            <input type="file" onchange="handleFileUpload(event, '2')" accept=".csv" class="block w-full text-sm border rounded-lg p-2 bg-slate-50 mb-4" />
+                            <div id="filterArea2" class="hidden space-y-4">
+                                <select id="govFilter2" onchange="applyFilter('2')" class="w-full p-2 border rounded-lg"></select>
+                                <div class="p-4 bg-purple-50 rounded-xl">
+                                    <p class="text-xs text-purple-600 font-bold uppercase">الإجمالي</p>
+                                    <p id="rowCount2" class="text-2xl font-black text-purple-800">0</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="lg:col-span-2">
+                        <div id="chartBox2" class="hidden bg-white p-4 rounded-2xl border h-[450px]">
+                            <canvas id="canvas2"></canvas>
+                        </div>
+                    </div>
+                </section>
+            </div>
+
+            <!-- Tab 3 (Comparison) -->
+            <div id="tab3" class="tab-content hidden">
+                <div class="bg-white p-3 sm:p-6 rounded-2xl border border-slate-200">
+                    <div class="flex flex-col sm:flex-row justify-between items-center gap-4 mb-6">
+                        <div class="text-center sm:text-right">
+                            <h3 class="text-xl font-bold">مقارنة New User vs Pending Physical</h3>
+                        </div>
+                        <button onclick="exportChartAsImage()" class="w-full sm:w-auto px-6 py-3 bg-blue-600 text-white rounded-xl font-bold shadow-lg hover:bg-blue-700 flex justify-center items-center gap-2">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                            تصدير بوضوح عالي
+                        </button>
+                    </div>
+                    
+                    <div id="chartExportArea" class="bg-white p-2 sm:p-6 rounded-xl border border-slate-100 chart-container h-[800px] overflow-hidden">
+                        <canvas id="canvasComparison"></canvas>
+                    </div>
+                </div>
+            </div>
+        </main>
+        
+        <div id="welcomeState" class="mt-20 text-center text-slate-400">
+            <p>يرجى رفع الملفات للمقارنة</p>
+        </div>
+    </div>
+
+    <script>
+        Chart.register(ChartDataLabels);
+
+        // أسماء المحافظات المحدثة حسب طلبك
+        const govMapping = {
+            "FDW": "Qadisiya",
+            "FBG": "Baghdad",
+            "FKU": "Wasit",
+            "FNJ": "Najaf",
+            "FRM": "Anbar",
+            "FBB": "Babil",
+            "FBS": "Basrah",
+            "FKR": "Karballa",
+            "FTK": "Salah aldin",
+            "FKK": "Kirkuk",
+            "FAM": "Misan",
+            "FMU": "Muthanna",
+            "FNS": "Thy Qar",
+            "FDY": "Diala",
+            "FMS": "Naynawa"
+        };
+
+        const appState = {
+            "1": { rows: [], zoneIdx: -1, govIdx: -1, chart: null },
+            "2": { rows: [], zoneIdx: -1, govIdx: -1, chart: null },
+            comparisonChart: null
+        };
+
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(t => t.classList.add('hidden'));
+            document.getElementById(tabId).classList.remove('hidden');
+            ['tab1', 'tab2', 'tab3'].forEach(id => {
+                const btn = document.getElementById(`btn-${id}`);
+                if(btn) btn.className = tabId === id ? 'tab-btn px-2 sm:px-6 py-3 transition-all tab-active' : 'tab-btn px-2 sm:px-6 py-3 transition-all text-slate-400';
+            });
+            if(tabId === 'tab3') updateComparisonChart();
+        }
+
+        function parseCSV(text) {
+            const rows = [];
+            let row = [], cell = "", inQuotes = false;
+            for (let i = 0; i < text.length; i++) {
+                const c = text[i];
+                if (inQuotes) {
+                    if (c === '"' && text[i+1] === '"') { cell += '"'; i++; }
+                    else if (c === '"') inQuotes = false;
+                    else cell += c;
+                } else {
+                    if (c === '"') inQuotes = true;
+                    else if (c === ',') { row.push(cell.trim()); cell = ""; }
+                    else if (c === '\n' || c === '\r') {
+                        row.push(cell.trim());
+                        if (row.length > 0) rows.push(row);
+                        row = []; cell = "";
+                        if (c === '\r' && text[i+1] === '\n') i++;
+                    } else cell += c;
+                }
+            }
+            if (cell || row.length) { row.push(cell.trim()); rows.push(row); }
+            return rows;
+        }
+
+        function handleFileUpload(event, fileNum) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const data = parseCSV(e.target.result);
+                if (data.length < 1) return;
+                const headers = data[0];
+                const rows = data.slice(1);
+                const state = appState[fileNum];
+                
+                state.zoneIdx = headers.findIndex(h => h.toLowerCase().includes("zone"));
+                state.statusIdx = headers.findIndex(h => h.toLowerCase().includes("status"));
+                state.govIdx = headers.length; 
+
+                let processed = rows.map(r => {
+                    const zone = (r[state.zoneIdx] || "").toUpperCase();
+                    let mapped = "Unknown";
+                    for (const [k, v] of Object.entries(govMapping)) {
+                        if (zone.startsWith(k)) { mapped = v; break; }
+                    }
+                    return [...r, mapped];
+                });
+
+                if (fileNum === "2") {
+                    processed = processed.filter(r => (r[state.statusIdx] || "").trim() === "Pending Physical Installation");
+                }
+
+                state.rows = processed;
+                document.getElementById('welcomeState').classList.add('hidden');
+                document.getElementById(`filterArea${fileNum}`).classList.remove('hidden');
+                document.getElementById(`chartBox${fileNum}`).classList.remove('hidden');
+
+                const sel = document.getElementById(`govFilter${fileNum}`);
+                sel.innerHTML = '<option value="all">All Provinces</option>';
+                Object.entries(govMapping).forEach(([k, v]) => sel.innerHTML += `<option value="${k}">${v}</option>`);
+                
+                applyFilter(fileNum);
+            };
+            reader.readAsText(file);
+        }
+
+        function applyFilter(fileNum) {
+            const state = appState[fileNum];
+            const val = document.getElementById(`govFilter${fileNum}`).value;
+            const filtered = val === "all" ? state.rows : state.rows.filter(r => (r[state.zoneIdx] || "").toUpperCase().startsWith(val));
+            renderSingleChart(fileNum, filtered);
+        }
+
+        function renderSingleChart(fileNum, data) {
+            document.getElementById(`rowCount${fileNum}`).textContent = data.length.toLocaleString();
+            const counts = {};
+            data.forEach(r => { const g = r[appState[fileNum].govIdx]; counts[g] = (counts[g] || 0) + 1; });
+            
+            const labels = Object.values(govMapping).filter(v => counts[v]);
+            const values = labels.map(l => counts[l] || 0);
+
+            if (appState[fileNum].chart) appState[fileNum].chart.destroy();
+            appState[fileNum].chart = new Chart(document.getElementById(`canvas${fileNum}`), {
+                type: 'bar',
+                data: { labels, datasets: [{ data: values, backgroundColor: fileNum === '1' ? '#3b82f6' : '#a855f7', borderRadius: 5 }] },
+                options: { 
+                    indexAxis: 'y', 
+                    maintainAspectRatio: false, 
+                    plugins: { 
+                        legend: { display: false }, 
+                        datalabels: { 
+                            anchor: 'end', 
+                            align: 'right', 
+                            offset: 17, 
+                            font: { weight: 'bold', size: 14 } 
+                        } 
+                    },
+                    scales: {
+                        x: { grid: { display: false } }
+                    }
+                }
+            });
+        }
+
+        function updateComparisonChart() {
+            const labels = Object.values(govMapping).sort();
+            const d1 = {}, d2 = {};
+            appState["1"].rows.forEach(r => { const g = r[appState["1"].govIdx]; d1[g] = (d1[g] || 0) + 1; });
+            appState["2"].rows.forEach(r => { const g = r[appState["2"].govIdx]; d2[g] = (d2[g] || 0) + 1; });
+
+            if (appState.comparisonChart) appState.comparisonChart.destroy();
+            appState.comparisonChart = new Chart(document.getElementById('canvasComparison'), {
+                type: 'bar',
+                data: {
+                    labels,
+                    datasets: [
+                        { label: 'New User', data: labels.map(l => d1[l] || 0), backgroundColor: '#3b82f6', borderRadius: 4, barPercentage: 0.75, categoryPercentage: 0.8 },
+                        { label: 'Pending Physical', data: labels.map(l => d2[l] || 0), backgroundColor: '#a855f7', borderRadius: 4, barPercentage: 0.75, categoryPercentage: 0.8 }
+                    ]
+                },
+                options: {
+                    indexAxis: 'y',
+                    maintainAspectRatio: false,
+                    layout: { padding: { right: 80, left: 10, top: 10, bottom: 10 } },
+                    plugins: {
+                        legend: { position: 'top', labels: { font: { size: 14, weight: '800' }, padding: 20 } },
+                        datalabels: {
+                            anchor: 'end',
+                            align: 'right',
+                            offset: 22, 
+                            color: '#1e293b',
+                            font: { size: 15, weight: '700' },
+                            formatter: (v) => v > 0 ? v.toLocaleString() : '0'
+                        }
+                    },
+                    scales: {
+                        x: { grid: { display: false }, ticks: { font: { weight: 'bold' } } },
+                        y: { ticks: { font: { size: 14, weight: 'bold' }, color: '#334155' } }
+                    }
+                }
+            });
+        }
+
+        async function exportChartAsImage() {
+            const target = document.getElementById('chartExportArea');
+            const canvas = await html2canvas(target, { 
+                backgroundColor: '#ffffff', 
+                scale: 3, 
+                useCORS: true 
+            });
+            const link = document.createElement('a');
+            link.download = `Report_${new Date().getTime()}.png`;
+            link.href = canvas.toDataURL('image/png', 1.0);
+            link.click();
+        }
+    </script>
+</body>
+</html>

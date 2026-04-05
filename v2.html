@@ -275,7 +275,12 @@
     </div>
 
     <script>
-        Chart.register(ChartDataLabels);
+        // Register Chart.js plugin safely
+        if (typeof Chart !== 'undefined' && typeof ChartDataLabels !== 'undefined') {
+            Chart.register(ChartDataLabels);
+        } else {
+            console.error('Chart.js or ChartDataLabels not loaded');
+        }
 
         // Province Mapping
         const govMapping = {
@@ -379,56 +384,77 @@
             const file = event.target.files[0];
             if (!file) return;
             
+            // Validate file type
+            if (!file.name.toLowerCase().endsWith('.csv')) {
+                alert('Please upload a CSV file');
+                return;
+            }
+            
             const reader = new FileReader();
+            reader.onerror = () => {
+                alert('Error reading file. Please try again.');
+            };
+            
             reader.onload = (e) => {
-                const data = parseCSV(e.target.result);
-                if (data.length < 1) {
-                    alert('Invalid CSV file');
-                    return;
-                }
-                
-                const headers = data[0];
-                const rows = data.slice(1);
-                const state = appState[fileNum];
-                
-                state.zoneIdx = headers.findIndex(h => h.toLowerCase().includes("zone"));
-                state.statusIdx = headers.findIndex(h => h.toLowerCase().includes("status"));
-                state.govIdx = headers.length; 
-
-                let processed = rows.map(r => {
-                    const zone = (r[state.zoneIdx] || "").toUpperCase();
-                    let mapped = "Unknown";
-                    for (const [k, v] of Object.entries(govMapping)) {
-                        if (zone.startsWith(k)) { 
-                            mapped = v; 
-                            break; 
-                        }
+                try {
+                    const data = parseCSV(e.target.result);
+                    if (data.length < 1) {
+                        alert('Invalid CSV file - no data found');
+                        return;
                     }
-                    return [...r, mapped];
-                });
+                    
+                    const headers = data[0];
+                    const rows = data.slice(1);
+                    const state = appState[fileNum];
+                    
+                    state.zoneIdx = headers.findIndex(h => h.toLowerCase().includes("zone"));
+                    state.statusIdx = headers.findIndex(h => h.toLowerCase().includes("status"));
+                    
+                    if (state.zoneIdx === -1) {
+                        alert('CSV must contain a "zone" column');
+                        return;
+                    }
+                    
+                    state.govIdx = headers.length; 
 
-                // Filter for Pending Physical in dataset 2
-                if (fileNum === "2") {
-                    processed = processed.filter(r => 
-                        (r[state.statusIdx] || "").trim() === "Pending Physical Installation"
-                    );
+                    let processed = rows.map(r => {
+                        const zone = (r[state.zoneIdx] || "").toUpperCase();
+                        let mapped = "Unknown";
+                        for (const [k, v] of Object.entries(govMapping)) {
+                            if (zone.startsWith(k)) { 
+                                mapped = v; 
+                                break; 
+                            }
+                        }
+                        return [...r, mapped];
+                    });
+
+                    // Filter for Pending Physical in dataset 2
+                    if (fileNum === "2" && state.statusIdx !== -1) {
+                        processed = processed.filter(r => 
+                            (r[state.statusIdx] || "").trim() === "Pending Physical Installation"
+                        );
+                    }
+
+                    state.rows = processed;
+                    
+                    // Update UI
+                    document.getElementById('welcomeState').classList.add('hidden');
+                    document.getElementById(`filterArea${fileNum}`).classList.remove('hidden');
+                    document.getElementById(`chartBox${fileNum}`).classList.remove('hidden');
+
+                    // Populate filter dropdown
+                    const sel = document.getElementById(`govFilter${fileNum}`);
+                    sel.innerHTML = '<option value="all">All Provinces</option>';
+                    Object.entries(govMapping).forEach(([k, v]) => {
+                        sel.innerHTML += `<option value="${k}">${v}</option>`;
+                    });
+                    
+                    applyFilter(fileNum);
+                } catch (error) {
+                    console.error('Error processing CSV:', error);
+                    alert('Error processing CSV file: ' + error.message);
                 }
-
-                state.rows = processed;
-                
-                // Update UI
-                document.getElementById('welcomeState').classList.add('hidden');
-                document.getElementById(`filterArea${fileNum}`).classList.remove('hidden');
-                document.getElementById(`chartBox${fileNum}`).classList.remove('hidden');
-
-                // Populate filter dropdown
-                const sel = document.getElementById(`govFilter${fileNum}`);
-                sel.innerHTML = '<option value="all">All Provinces</option>';
-                Object.entries(govMapping).forEach(([k, v]) => {
-                    sel.innerHTML += `<option value="${k}">${v}</option>`;
-                });
-                
-                applyFilter(fileNum);
             };
             
             reader.readAsText(file);
@@ -446,236 +472,286 @@
         }
 
         function renderSingleChart(fileNum, data) {
-            document.getElementById(`rowCount${fileNum}`).textContent = data.length.toLocaleString();
-            
-            const counts = {};
-            data.forEach(r => { 
-                const g = r[appState[fileNum].govIdx]; 
-                counts[g] = (counts[g] || 0) + 1; 
-            });
-            
-            const labels = Object.values(govMapping).filter(v => counts[v]);
-            const values = labels.map(l => counts[l] || 0);
+            try {
+                document.getElementById(`rowCount${fileNum}`).textContent = data.length.toLocaleString();
+                
+                const counts = {};
+                data.forEach(r => { 
+                    const g = r[appState[fileNum].govIdx]; 
+                    counts[g] = (counts[g] || 0) + 1; 
+                });
+                
+                const labels = Object.values(govMapping).filter(v => counts[v]);
+                const values = labels.map(l => counts[l] || 0);
 
-            // Generate gradient colors
-            const colors = labels.map((_, idx) => {
-                const scheme = colorSchemes[fileNum].gradient;
-                return scheme[idx % scheme.length];
-            });
-
-            if (appState[fileNum].chart) appState[fileNum].chart.destroy();
-            
-            appState[fileNum].chart = new Chart(document.getElementById(`canvas${fileNum}`), {
-                type: 'bar',
-                data: { 
-                    labels, 
-                    datasets: [{ 
-                        data: values, 
-                        backgroundColor: colors,
-                        borderRadius: 8,
-                        borderWidth: 2,
-                        borderColor: 'rgba(255, 255, 255, 0.8)',
-                        hoverBackgroundColor: colorSchemes[fileNum].primary,
-                        barPercentage: 0.8
-                    }] 
-                },
-                options: { 
-                    indexAxis: 'y', 
-                    maintainAspectRatio: false,
-                    responsive: true,
-                    plugins: { 
-                        legend: { display: false },
-                        tooltip: {
-                            backgroundColor: 'rgba(0, 0, 0, 0.8)',
-                            padding: 12,
-                            titleFont: { size: 14, weight: 'bold' },
-                            bodyFont: { size: 13 },
-                            cornerRadius: 8
-                        },
-                        datalabels: { 
-                            anchor: 'end', 
-                            align: 'end', 
-                            offset: 8, 
-                            color: '#1e293b',
-                            font: { 
-                                weight: 'bold', 
-                                size: window.innerWidth < 640 ? 11 : 14 
-                            },
-                            formatter: (v) => v.toLocaleString()
-                        } 
-                    },
-                    scales: {
-                        x: { 
-                            grid: { display: false },
-                            ticks: { 
-                                font: { weight: '600', size: 12 },
-                                color: '#64748b'
-                            }
-                        },
-                        y: {
-                            grid: { color: '#f1f5f9' },
-                            ticks: { 
-                                font: { 
-                                    size: window.innerWidth < 640 ? 11 : 13, 
-                                    weight: '600' 
-                                },
-                                color: '#334155'
-                            }
-                        }
-                    },
-                    animation: {
-                        duration: 800,
-                        easing: 'easeInOutQuart'
-                    }
+                if (labels.length === 0) {
+                    console.warn('No data to display');
+                    return;
                 }
-            });
+
+                // Generate gradient colors
+                const colors = labels.map((_, idx) => {
+                    const scheme = colorSchemes[fileNum].gradient;
+                    return scheme[idx % scheme.length];
+                });
+
+                if (appState[fileNum].chart) {
+                    appState[fileNum].chart.destroy();
+                }
+                
+                const canvas = document.getElementById(`canvas${fileNum}`);
+                if (!canvas) {
+                    console.error('Canvas not found');
+                    return;
+                }
+
+                appState[fileNum].chart = new Chart(canvas, {
+                    type: 'bar',
+                    data: { 
+                        labels, 
+                        datasets: [{ 
+                            data: values, 
+                            backgroundColor: colors,
+                            borderRadius: 8,
+                            borderWidth: 2,
+                            borderColor: 'rgba(255, 255, 255, 0.8)',
+                            hoverBackgroundColor: colorSchemes[fileNum].primary,
+                            barPercentage: 0.8
+                        }] 
+                    },
+                    options: { 
+                        indexAxis: 'y', 
+                        maintainAspectRatio: false,
+                        responsive: true,
+                        plugins: { 
+                            legend: { display: false },
+                            tooltip: {
+                                backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                                padding: 12,
+                                titleFont: { size: 14, weight: 'bold' },
+                                bodyFont: { size: 13 },
+                                cornerRadius: 8
+                            },
+                            datalabels: { 
+                                anchor: 'end', 
+                                align: 'end', 
+                                offset: 8, 
+                                color: '#1e293b',
+                                font: { 
+                                    weight: 'bold', 
+                                    size: window.innerWidth < 640 ? 11 : 14 
+                                },
+                                formatter: (v) => v.toLocaleString()
+                            } 
+                        },
+                        scales: {
+                            x: { 
+                                grid: { display: false },
+                                ticks: { 
+                                    font: { weight: '600', size: 12 },
+                                    color: '#64748b'
+                                }
+                            },
+                            y: {
+                                grid: { color: '#f1f5f9' },
+                                ticks: { 
+                                    font: { 
+                                        size: window.innerWidth < 640 ? 11 : 13, 
+                                        weight: '600' 
+                                    },
+                                    color: '#334155'
+                                }
+                            }
+                        },
+                        animation: {
+                            duration: 800,
+                            easing: 'easeInOutQuart'
+                        }
+                    }
+                });
+            } catch (error) {
+                console.error('Error rendering chart:', error);
+                alert('Error displaying chart: ' + error.message);
+            }
         }
 
         function updateComparisonChart() {
-            const labels = Object.values(govMapping).sort();
-            const d1 = {}, d2 = {};
-            
-            appState["1"].rows.forEach(r => { 
-                const g = r[appState["1"].govIdx]; 
-                d1[g] = (d1[g] || 0) + 1; 
-            });
-            
-            appState["2"].rows.forEach(r => { 
-                const g = r[appState["2"].govIdx]; 
-                d2[g] = (d2[g] || 0) + 1; 
-            });
+            try {
+                const labels = Object.values(govMapping).sort();
+                const d1 = {}, d2 = {};
+                
+                appState["1"].rows.forEach(r => { 
+                    const g = r[appState["1"].govIdx]; 
+                    d1[g] = (d1[g] || 0) + 1; 
+                });
+                
+                appState["2"].rows.forEach(r => { 
+                    const g = r[appState["2"].govIdx]; 
+                    d2[g] = (d2[g] || 0) + 1; 
+                });
 
-            if (appState.comparisonChart) appState.comparisonChart.destroy();
-            
-            appState.comparisonChart = new Chart(document.getElementById('canvasComparison'), {
-                type: 'bar',
-                data: {
-                    labels,
-                    datasets: [
-                        { 
-                            label: 'New User', 
-                            data: labels.map(l => d1[l] || 0), 
-                            backgroundColor: '#3b82f6',
-                            borderColor: '#2563eb',
-                            borderWidth: 2,
-                            borderRadius: 6, 
-                            barPercentage: 0.7, 
-                            categoryPercentage: 0.85 
-                        },
-                        { 
-                            label: 'Pending Physical', 
-                            data: labels.map(l => d2[l] || 0), 
-                            backgroundColor: '#a855f7',
-                            borderColor: '#9333ea',
-                            borderWidth: 2,
-                            borderRadius: 6, 
-                            barPercentage: 0.7, 
-                            categoryPercentage: 0.85 
-                        }
-                    ]
-                },
-                options: {
-                    indexAxis: 'y',
-                    maintainAspectRatio: false,
-                    responsive: true,
-                    layout: { 
-                        padding: { 
-                            right: window.innerWidth < 640 ? 50 : 80, 
-                            left: 10, 
-                            top: 20, 
-                            bottom: 10 
-                        } 
+                if (appState.comparisonChart) {
+                    appState.comparisonChart.destroy();
+                }
+                
+                const canvas = document.getElementById('canvasComparison');
+                if (!canvas) {
+                    console.error('Comparison canvas not found');
+                    return;
+                }
+
+                appState.comparisonChart = new Chart(canvas, {
+                    type: 'bar',
+                    data: {
+                        labels,
+                        datasets: [
+                            { 
+                                label: 'New User', 
+                                data: labels.map(l => d1[l] || 0), 
+                                backgroundColor: '#3b82f6',
+                                borderColor: '#2563eb',
+                                borderWidth: 2,
+                                borderRadius: 6, 
+                                barPercentage: 0.7, 
+                                categoryPercentage: 0.85 
+                            },
+                            { 
+                                label: 'Pending Physical', 
+                                data: labels.map(l => d2[l] || 0), 
+                                backgroundColor: '#a855f7',
+                                borderColor: '#9333ea',
+                                borderWidth: 2,
+                                borderRadius: 6, 
+                                barPercentage: 0.7, 
+                                categoryPercentage: 0.85 
+                            }
+                        ]
                     },
-                    plugins: {
-                        legend: { 
-                            position: 'top',
-                            align: 'center',
-                            labels: { 
+                    options: {
+                        indexAxis: 'y',
+                        maintainAspectRatio: false,
+                        responsive: true,
+                        layout: { 
+                            padding: { 
+                                right: window.innerWidth < 640 ? 50 : 80, 
+                                left: 10, 
+                                top: 20, 
+                                bottom: 10 
+                            } 
+                        },
+                        plugins: {
+                            legend: { 
+                                position: 'top',
+                                align: 'center',
+                                labels: { 
+                                    font: { 
+                                        size: window.innerWidth < 640 ? 12 : 15, 
+                                        weight: '700' 
+                                    },
+                                    padding: 15,
+                                    usePointStyle: true,
+                                    pointStyle: 'circle',
+                                    boxWidth: 8,
+                                    boxHeight: 8
+                                } 
+                            },
+                            tooltip: {
+                                backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                                padding: 12,
+                                titleFont: { size: 14, weight: 'bold' },
+                                bodyFont: { size: 13 },
+                                cornerRadius: 8
+                            },
+                            datalabels: {
+                                anchor: 'end',
+                                align: 'end',
+                                offset: window.innerWidth < 640 ? 15 : 20, 
+                                color: '#1e293b',
                                 font: { 
-                                    size: window.innerWidth < 640 ? 12 : 15, 
+                                    size: window.innerWidth < 640 ? 10 : 14, 
                                     weight: '700' 
                                 },
-                                padding: 15,
-                                usePointStyle: true,
-                                pointStyle: 'circle',
-                                boxWidth: 8,
-                                boxHeight: 8
-                            } 
-                        },
-                        tooltip: {
-                            backgroundColor: 'rgba(0, 0, 0, 0.8)',
-                            padding: 12,
-                            titleFont: { size: 14, weight: 'bold' },
-                            bodyFont: { size: 13 },
-                            cornerRadius: 8
-                        },
-                        datalabels: {
-                            anchor: 'end',
-                            align: 'end',
-                            offset: window.innerWidth < 640 ? 15 : 20, 
-                            color: '#1e293b',
-                            font: { 
-                                size: window.innerWidth < 640 ? 10 : 14, 
-                                weight: '700' 
-                            },
-                            formatter: (v) => v > 0 ? v.toLocaleString() : ''
-                        }
-                    },
-                    scales: {
-                        x: { 
-                            grid: { display: false },
-                            ticks: { 
-                                font: { weight: '600', size: 12 },
-                                color: '#64748b'
+                                formatter: (v) => v > 0 ? v.toLocaleString() : ''
                             }
                         },
-                        y: { 
-                            grid: { color: '#f1f5f9' },
-                            ticks: { 
-                                font: { 
-                                    size: window.innerWidth < 640 ? 10 : 13, 
-                                    weight: '600' 
-                                },
-                                color: '#334155'
-                            } 
+                        scales: {
+                            x: { 
+                                grid: { display: false },
+                                ticks: { 
+                                    font: { weight: '600', size: 12 },
+                                    color: '#64748b'
+                                }
+                            },
+                            y: { 
+                                grid: { color: '#f1f5f9' },
+                                ticks: { 
+                                    font: { 
+                                        size: window.innerWidth < 640 ? 10 : 13, 
+                                        weight: '600' 
+                                    },
+                                    color: '#334155'
+                                } 
+                            }
+                        },
+                        animation: {
+                            duration: 1000,
+                            easing: 'easeInOutQuart'
                         }
-                    },
-                    animation: {
-                        duration: 1000,
-                        easing: 'easeInOutQuart'
                     }
-                }
-            });
+                });
+            } catch (error) {
+                console.error('Error updating comparison chart:', error);
+            }
         }
 
         async function exportSingleChart(fileNum) {
-            const target = document.getElementById(`chartBox${fileNum}`);
-            const canvas = await html2canvas(target, { 
-                backgroundColor: '#ffffff', 
-                scale: 3, 
-                useCORS: true,
-                logging: false
-            });
-            
-            const link = document.createElement('a');
-            link.download = `Chart_${fileNum === '1' ? 'NewUser' : 'PendingPhysical'}_${new Date().getTime()}.png`;
-            link.href = canvas.toDataURL('image/png', 1.0);
-            link.click();
+            try {
+                const target = document.getElementById(`chartBox${fileNum}`);
+                if (!target) {
+                    alert('Chart not found');
+                    return;
+                }
+                
+                const canvas = await html2canvas(target, { 
+                    backgroundColor: '#ffffff', 
+                    scale: 3, 
+                    useCORS: true,
+                    logging: false
+                });
+                
+                const link = document.createElement('a');
+                link.download = `Chart_${fileNum === '1' ? 'NewUser' : 'PendingPhysical'}_${new Date().getTime()}.png`;
+                link.href = canvas.toDataURL('image/png', 1.0);
+                link.click();
+            } catch (error) {
+                console.error('Export error:', error);
+                alert('Error exporting chart: ' + error.message);
+            }
         }
 
         async function exportChartAsImage() {
-            const target = document.getElementById('chartExportArea');
-            const canvas = await html2canvas(target, { 
-                backgroundColor: '#ffffff', 
-                scale: 3, 
-                useCORS: true,
-                logging: false
-            });
-            
-            const link = document.createElement('a');
-            link.download = `Comparison_Report_${new Date().getTime()}.png`;
-            link.href = canvas.toDataURL('image/png', 1.0);
-            link.click();
+            try {
+                const target = document.getElementById('chartExportArea');
+                if (!target) {
+                    alert('Chart area not found');
+                    return;
+                }
+                
+                const canvas = await html2canvas(target, { 
+                    backgroundColor: '#ffffff', 
+                    scale: 3, 
+                    useCORS: true,
+                    logging: false
+                });
+                
+                const link = document.createElement('a');
+                link.download = `Comparison_Report_${new Date().getTime()}.png`;
+                link.href = canvas.toDataURL('image/png', 1.0);
+                link.click();
+            } catch (error) {
+                console.error('Export error:', error);
+                alert('Error exporting chart: ' + error.message);
+            }
         }
 
         // Responsive chart update on window resize

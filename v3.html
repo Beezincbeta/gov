@@ -459,8 +459,8 @@
                 data: {
                     labels,
                     datasets: [
-                        { label: 'New User', data: labels.map(l => d1[l] || 0), backgroundColor: 'rgba(37, 99, 235, 0.85)', borderRadius: 6 },
-                        { label: 'Pending Installation', data: labels.map(l => d2[l] || 0), backgroundColor: 'rgba(124, 58, 237, 0.85)', borderRadius: 6 }
+                        { label: 'New User', data: labels.map(l => d1[l] || 0), backgroundColor: 'rgba(37, 99, 235, 0.85)', borderRadius: 8 },
+                        { label: 'Pending Installation', data: labels.map(l => d2[l] || 0), backgroundColor: 'rgba(124, 58, 237, 0.85)', borderRadius: 8 }
                     ]
                 },
                 options: {
@@ -469,9 +469,12 @@
                     layout: { padding: { right: 110, left: 10, top: 10, bottom: 10 } },
                     plugins: {
                         ...commonChartOptions.plugins,
-                        legend: { 
+                        legend: {
                             position: 'top', 
                             labels: { font: { size: 14, weight: '700' } } 
+                        },
+                        tooltip: {
+                            backgroundColor: 'rgba(0, 0, 0, 0.8)', padding: 12, titleFont: { size: 14, weight: 'bold' }, bodyFont: { size: 13 }, cornerRadius: 8 
                         },
                         datalabels: {
                             anchor: 'end', align: 'right', offset: 10,

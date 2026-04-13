@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Alrabut - محرك البحث الذكي</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <style>
+        :root {
+            --primary: #f5576c;
+            --secondary: #f093fb;
+            --success: #4caf50;
+            --warning: #ff9800;
+            --danger: #f44336;
+            --bg-gradient: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            --card-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+
+        body {
+            background-color: #f8f9fa;
+            min-height: 100vh;
+            padding: 20px;
+            color: #333;
+        }
+
+        .container { max-width: 1000px; margin: 0 auto; }
+
+        header {
+            background: var(--bg-gradient);
+            padding: 40px 20px;
+            border-radius: 20px;
+            color: white;
+            text-align: center;
+            margin-bottom: 30px;
+            box-shadow: var(--card-shadow);
+        }
+
+        header h1 { font-size: 2.5rem; margin-bottom: 10px; }
+        header p { opacity: 0.9; font-size: 1.1rem; }
+
+        .main-card {
+            background: white;
+            border-radius: 20px;
+            box-shadow: var(--card-shadow);
+            overflow: hidden;
+            margin-bottom: 30px;
+        }
+
+        .tabs {
+            display: flex;
+            background: #eee;
+            padding: 5px;
+        }
+
+        .tab-btn {
+            flex: 1;
+            padding: 15px;
+            border: none;
+            background: none;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 1rem;
+            border-radius: 15px;
+            transition: 0.3s;
+        }
+
+        .tab-btn.active {
+            background: white;
+            color: var(--primary);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+        }
+
+        .card-body { padding: 30px; }
+
+        .content-section { display: none; }
+        .content-section.active { display: block; }
+
+        /* Single Search UI */
+        .search-box {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        input[type="text"] {
+            flex: 1;
+            padding: 15px;
+            border: 2px solid #ddd;
+            border-radius: 12px;
+            font-size: 1rem;
+            transition: 0.3s;
+        }
+
+        input[type="text"]:focus {
+            border-color: var(--primary);
+            outline: none;
+        }
+
+        .btn {
+            padding: 12px 25px;
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: 0.3s;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .btn-primary { background: var(--bg-gradient); color: white; }
+        .btn-primary:hover { transform: translateY(-2px); opacity: 0.9; }
+        .btn-primary:disabled { background: #ccc; cursor: not-allowed; transform: none; }
+
+        .btn-outline { border: 2px solid #ddd; background: white; }
+        .btn-outline:hover { background: #f5f5f5; }
+
+        /* Upload Area */
+        .upload-area {
+            border: 3px dashed #ddd;
+            padding: 40px;
+            text-align: center;
+            border-radius: 20px;
+            cursor: pointer;
+            transition: 0.3s;
+            background: #fafafa;
+            margin-bottom: 20px;
+        }
+
+        .upload-area:hover { border-color: var(--primary); background: #fff5f6; }
+        .upload-area.drag-over { border-color: var(--success); background: #f0fff0; }
+
+        /* Progress Bar */
+        .progress-container {
+            height: 10px;
+            background: #eee;
+            border-radius: 5px;
+            margin: 20px 0;
+            display: none;
+            overflow: hidden;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: var(--bg-gradient);
+            width: 0%;
+            transition: width 0.3s;
+        }
+
+        .throttle-notice {
+            color: var(--warning);
+            font-size: 0.9rem;
+            text-align: center;
+            margin-bottom: 10px;
+            display: none;
+            font-weight: bold;
+        }
+
+        /* Results Display */
+        .result-card {
+            background: #fff;
+            border: 1px solid #eee;
+            border-radius: 15px;
+            padding: 20px;
+            margin-top: 20px;
+            border-right: 5px solid var(--success);
+        }
+
+        .result-card.not-found { border-right-color: var(--warning); }
+        .result-card.error { border-right-color: var(--danger); }
+
+        .result-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+
+        .field-label { font-size: 0.8rem; color: #888; margin-bottom: 4px; }
+        .field-value { font-weight: 600; color: #333; }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .stat-item {
+            padding: 15px;
+            text-align: center;
+            border-radius: 15px;
+            background: #f8f9fa;
+        }
+
+        .stat-num { font-size: 1.5rem; font-weight: bold; display: block; }
+        .stat-text { font-size: 0.85rem; color: #666; }
+
+        #toast {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 15px 30px;
+            border-radius: 50px;
+            color: white;
+            font-weight: bold;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+            display: none;
+            z-index: 1000;
+        }
+
+        @media (max-width: 600px) {
+            .search-box { flex-direction: column; }
+            .stats-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <header>
+            <h1>Alrabut Search</h1>
+            <p>المحرك المتقدم للبحث عن بيانات جهات الاتصال (FTTH)</p>
+        </header>
+
+        <div class="main-card">
+            <div class="tabs">
+                <button class="tab-btn active" onclick="switchTab('single')">📱 بحث فردي</button>
+                <button class="tab-btn" onclick="switchTab('batch')">📂 بحث جماعي (CSV)</button>
+            </div>
+
+            <div class="card-body">
+                <!-- Single Search Section -->
+                <div id="single-section" class="content-section active">
+                    <div class="search-box">
+                        <input type="text" id="phoneInput" placeholder="أدخل رقم الهاتف للبحث...">
+                        <button class="btn btn-primary" id="btnSingleSearch">بحث الآن</button>
+                    </div>
+                    <div id="singleResultContainer"></div>
+                </div>
+
+                <!-- Batch Search Section -->
+                <div id="batch-section" class="content-section">
+                    <div class="upload-area" id="dropZone">
+                        <p style="font-size: 1.5rem; margin-bottom: 10px;">📁</p>
+                        <p>اسحب ملف الـ CSV هنا أو اضغط للاختيار</p>
+                        <input type="file" id="fileInput" accept=".csv" style="display:none">
+                    </div>
+
+                    <div id="fileInfo" style="display:none; margin-bottom:20px; padding:15px; background:#f0f7ff; border-radius:12px;">
+                        <span id="fileNameDisplay" style="font-weight:bold"></span>
+                        <span id="rowCountDisplay" style="margin-right:15px; color:#666"></span>
+                    </div>
+
+                    <div class="actions" style="display: flex; gap: 10px;">
+                        <button class="btn btn-primary" id="btnStartBatch" disabled>بدء المعالجة</button>
+                        <button class="btn btn-outline" onclick="downloadTemplate()">تحميل نموذج</button>
+                        <button class="btn btn-outline" id="btnExport" style="display:none; border-color: var(--success); color: var(--success)">تحميل النتائج</button>
+                    </div>
+
+                    <div id="throttleNotice" class="throttle-notice">⚠️ يتم الآن الانتظار 7 ثوانٍ لتجنب الضغط على الخادم...</div>
+
+                    <div class="progress-container" id="progContainer">
+                        <div class="progress-bar" id="progBar"></div>
+                    </div>
+
+                    <div id="batchStats" class="stats-grid" style="display:none; margin-top:20px;">
+                        <div class="stat-item" style="border-bottom: 4px solid var(--success)">
+                            <span class="stat-num" id="statFound">0</span>
+                            <span class="stat-text">تم العثور عليها</span>
+                        </div>
+                        <div class="stat-item" style="border-bottom: 4px solid var(--warning)">
+                            <span class="stat-num" id="statMissing">0</span>
+                            <span class="stat-text">غير موجودة</span>
+                        </div>
+                        <div class="stat-item" style="border-bottom: 4px solid var(--danger)">
+                            <span class="stat-num" id="statError">0</span>
+                            <span class="stat-text">أخطاء تقنية</span>
+                        </div>
+                    </div>
+
+                    <div id="batchResultsList"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast"></div>
+
+    <script>
+        const TOKEN = 'Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJodHRwczovL2FkbWluLmFscmFidXQuY29tL2JhY2svYXBpL2xvZ2luIiwiaWF0IjoxNzc2MTAxMjQ1LCJleHAiOjE3NzYxMjI4NDUsIm5iZiI6MTc3NjEwMTI0NSwianRpIjoiUU1LSzlGVUpnM1kyWTJpTiIsInN1YiI6IjI5MiIsInBydiI6IjIzYmQ1Yzg5NDlmNjAwYWRiMzllNzAxYzQwMDg3MmRiN2E1OTc2ZjciLCJwZXJtaXNzaW9ucyI6WyJhY3RpdmF0aW9uX2xpc3QiLCJmdHRoX2NvbnRhY3RzX2xpc3QiLCJmdHRoX2NvbnRhY3RzX2xpc3RfZWRpdCIsImZ0dGhfY29udGFjdHNfbGlzdF9hY3RpdmF0aW9uIiwiZGFzaGJvYXJkX3Bvc19zZWFyY2giLCJyZXNlbGxlcl9saXN0IiwicmVzZWxsZXJfbGlzdF9tb25leV9kZXBvc2l0IiwicmVzZWxsZXJfbGlzdF9tb25leV93aXRoZHJhdyIsInRyYW5zYWN0aW9uX2xpc3QiLCJmdHRoX2NvbnRhY3RzX2xpc3RfZWRpdF9wYXJlbnRfb3duIiwiZnR0aF9yZXF1ZXN0X2xpc3QiLCJmdHRoX3JlcXVlc3RfbGlzdF9hZGQiLCJmdHRoX3JlcXVlc3RfbGlzdF9lZGl0IiwiZnR0aF9yZXF1ZXN0X2xpc3RfdGVhbSIsImZ0dGhfcmVxdWVzdF9saXN0X3ZpZXciLCJqb3VybmFsX2xpc3RfZXhwb3J0IiwiYWN0aXZhdGlvbl9saXN0X2V4cG9ydCJdfQ.c0QHZJBKO6FpSqO69Vwvgqdttd08HEk7pTYMrGCuRJ4';
+        const API_URL = 'https://admin.alrabut.com/back/api/ftth_contacts_alist';
+        
+        let csvData = [];
+        let resultsData = [];
+
+        function switchTab(mode) {
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.content-section').forEach(s => s.classList.remove('active'));
+            
+            if(mode === 'single') {
+                document.querySelector('.tab-btn:nth-child(1)').classList.add('active');
+                document.getElementById('single-section').classList.add('active');
+            } else {
+                document.querySelector('.tab-btn:nth-child(2)').classList.add('active');
+                document.getElementById('batch-section').classList.add('active');
+            }
+        }
+
+        async function fetchContact(searchQuery) {
+            const response = await fetch(API_URL, {
+                method: 'POST',
+                headers: {
+                    'Authorization': TOKEN,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ search: searchQuery })
+            });
+            if (!response.ok) throw new Error('API Error');
+            return await response.json();
+        }
+
+        document.getElementById('btnSingleSearch').addEventListener('click', async () => {
+            const input = document.getElementById('phoneInput');
+            const val = input.value.trim();
+            const container = document.getElementById('singleResultContainer');
+            const btn = document.getElementById('btnSingleSearch');
+
+            if(!val) return showToast('يرجى إدخال قيمة للبحث', 'warning');
+
+            btn.disabled = true;
+            btn.textContent = 'جاري البحث...';
+            container.innerHTML = '';
+
+            try {
+                const res = await fetchContact(val);
+                if(res.data && res.data.length > 0) {
+                    container.innerHTML = createResultCard(res.data[0]);
+                    showToast('تم العثور على البيانات', 'success');
+                } else {
+                    container.innerHTML = `<div class="result-card not-found">⚠️ لم يتم العثور على أي بيانات مرتبطة بهذا الرقم.</div>`;
+                    showToast('لا توجد نتائج', 'warning');
+                }
+            } catch (err) {
+                container.innerHTML = `<div class="result-card error">❌ خطأ في الاتصال بالخادم.</div>`;
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'بحث الآن';
+            }
+        });
+
+        const fileInput = document.getElementById('fileInput');
+        document.getElementById('dropZone').onclick = () => fileInput.click();
+        fileInput.onchange = (e) => handleFile(e.target.files[0]);
+
+        function handleFile(file) {
+            if(!file || !file.name.endsWith('.csv')) return showToast('يرجى اختيار ملف CSV صحيح', 'danger');
+            Papa.parse(file, {
+                header: true,
+                skipEmptyLines: true,
+                complete: function(results) {
+                    csvData = results.data;
+                    document.getElementById('fileNameDisplay').textContent = file.name;
+                    document.getElementById('rowCountDisplay').textContent = `(${csvData.length} صف)`;
+                    document.getElementById('fileInfo').style.display = 'block';
+                    document.getElementById('btnStartBatch').disabled = false;
+                    showToast('تم تحميل الملف', 'success');
+                }
+            });
+        }
+
+        document.getElementById('btnStartBatch').addEventListener('click', async () => {
+            const btn = document.getElementById('btnStartBatch');
+            const progBar = document.getElementById('progBar');
+            const resultsList = document.getElementById('batchResultsList');
+            const throttleNotice = document.getElementById('throttleNotice');
+            
+            btn.disabled = true;
+            document.getElementById('progContainer').style.display = 'block';
+            document.getElementById('batchStats').style.display = 'grid';
+            resultsList.innerHTML = '';
+            resultsData = [];
+
+            let foundCount = 0, missingCount = 0, errorCount = 0;
+            const phoneKey = Object.keys(csvData[0]).find(k => k.toLowerCase().includes('phone') || k.toLowerCase().includes('رقم')) || Object.keys(csvData[0])[0];
+
+            for (let i = 0; i < csvData.length; i++) {
+                // Throttle Logic: Every 50 requests
+                if (i > 0 && i % 50 === 0) {
+                    throttleNotice.style.display = 'block';
+                    await new Promise(r => setTimeout(r, 7000));
+                    throttleNotice.style.display = 'none';
+                }
+
+                const searchValue = csvData[i][phoneKey];
+                progBar.style.width = (((i + 1) / csvData.length) * 100) + '%';
+
+                try {
+                    const res = await fetchContact(searchValue);
+                    let resultRow = { ...csvData[i], system_id: '', system_name: '', system_email: '', status: 'غير موجود' };
+
+                    if(res.data && res.data.length > 0) {
+                        const c = res.data[0];
+                        foundCount++;
+                        resultRow.system_id = c.id;
+                        resultRow.system_name = c.name;
+                        resultRow.system_email = c.email;
+                        resultRow.status = 'موجود';
+                        if(i < 10) resultsList.innerHTML += createResultCard(c, `بحث عن: ${searchValue}`);
+                    } else {
+                        missingCount++;
+                    }
+                    resultsData.push(resultRow);
+                } catch (err) {
+                    errorCount++;
+                    resultsData.push({ ...csvData[i], status: 'خطأ تقني' });
+                }
+
+                document.getElementById('statFound').textContent = foundCount;
+                document.getElementById('statMissing').textContent = missingCount;
+                document.getElementById('statError').textContent = errorCount;
+
+                await new Promise(r => setTimeout(r, 100)); // Short break between single calls
+            }
+
+            btn.disabled = false;
+            document.getElementById('btnExport').style.display = 'inline-flex';
+            showToast('اكتملت المعالجة', 'success');
+        });
+
+        function createResultCard(contact, header = '') {
+            return `
+                <div class="result-card">
+                    ${header ? `<div style="font-weight:bold; margin-bottom:10px; color:var(--primary)">${header}</div>` : ''}
+                    <div class="result-grid">
+                        <div class="field-item"><div class="field-label">ID</div><div class="field-value">${contact.id || '---'}</div></div>
+                        <div class="field-item"><div class="field-label">الاسم</div><div class="field-value">${contact.name || '---'}</div></div>
+                        <div class="field-item"><div class="field-label">رقم الهاتف</div><div class="field-value">${contact.phone || '---'}</div></div>
+                        <div class="field-item"><div class="field-label">البريد</div><div class="field-value">${contact.email || '---'}</div></div>
+                    </div>
+                </div>
+            `;
+        }
+
+        document.getElementById('btnExport').addEventListener('click', () => {
+            const csv = Papa.unparse(resultsData);
+            const blob = new Blob(["\ufeff" + csv], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `Alrabut_Results_${Date.now()}.csv`;
+            a.click();
+        });
+
+        function downloadTemplate() {
+            const blob = new Blob(["phone_number\n07700000000"], { type: 'text/csv' });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = 'template.csv';
+            a.click();
+        }
+
+        function showToast(msg, type) {
+            const t = document.getElementById('toast');
+            t.textContent = msg;
+            t.style.backgroundColor = { success: '#4caf50', danger: '#f44336', warning: '#ff9800' }[type];
+            t.style.display = 'block';
+            setTimeout(() => t.style.display = 'none', 3000);
+        }
+    </script>
+</body>
+</html>

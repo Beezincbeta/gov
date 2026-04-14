@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Alrabut FTTH - النظام المدمج</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <style>
+        :root {
+            --primary: #2563eb;
+            --success: #16a34a;
+            --danger: #dc2626;
+            --warning: #f59e0b;
+            --bg: #f8fafc;
+            --card: #ffffff;
+            --text: #1e293b;
+            --border: #e2e8f0;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .container {
+            max-width: 900px;
+            margin: auto;
+            background: var(--card);
+            padding: 30px;
+            border-radius: 16px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+        }
+        h1 { text-align: center; color: var(--primary); margin-bottom: 8px; font-size: 1.9rem; }
+        h2 { color: var(--primary); margin: 20px 0 15px 0; font-size: 1.3rem; }
+        .subtitle { text-align: center; color: #64748b; margin-bottom: 25px; font-size: 0.95rem; }
+        
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 20px; }
+        .form-group label { display: block; margin-bottom: 6px; font-weight: 600; font-size: 0.9rem; }
+        input {
+            width: 100%; padding: 12px; border: 1px solid var(--border);
+            border-radius: 8px; font-size: 0.95rem; transition: 0.2s;
+        }
+        input:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(37,99,235,0.15); }
+        
+        .drop-zone {
+            border: 2px dashed var(--border);
+            padding: 40px 20px;
+            text-align: center;
+            margin: 20px 0;
+            cursor: pointer;
+            border-radius: 12px;
+            background: #f1f5f9;
+            transition: all 0.3s;
+        }
+        .drop-zone:hover, .drop-zone.dragover { 
+            background: #e2e8f0; border-color: var(--primary); transform: scale(1.01); 
+        }
+        .drop-zone input[type="file"] { display: none; }
+
+        .btn {
+            width: 100%; padding: 14px; border: none; border-radius: 8px;
+            font-size: 1rem; font-weight: 700; cursor: pointer; transition: 0.2s;
+            margin-bottom: 10px;
+        }
+        .btn-primary { background: var(--primary); color: white; }
+        .btn-primary:hover:not(:disabled) { background: #1d4ed8; }
+        .btn-primary:disabled { background: #94a3b8; cursor: not-allowed; opacity: 0.7; }
+        .btn-success { background: var(--success); color: white; }
+        .btn-success:hover { background: #15803d; }
+        .btn-danger { background: var(--danger); color: white; }
+        .btn-danger:hover { background: #b91c1c; }
+
+        .progress-container { margin: 25px 0; display: none; }
+        .progress-bar { width: 100%; background: #e2e8f0; height: 14px; border-radius: 7px; overflow: hidden; }
+        .progress-fill { height: 100%; background: var(--primary); width: 0%; transition: width 0.4s ease; }
+        .status-text { text-align: center; margin-top: 10px; font-weight: 500; color: #475569; min-height: 24px; }
+
+        .stats {
+            display: flex; justify-content: space-around; gap: 10px; flex-wrap: wrap; margin-top: 15px;
+        }
+        .stat-box {
+            background: #f8fafc; padding: 14px; border-radius: 10px; text-align: center; 
+            flex: 1; min-width: 100px; border-top: 4px solid var(--border);
+        }
+        .stat-box.success { border-color: var(--success); }
+        .stat-box.error { border-color: var(--danger); }
+        .stat-box.warning { border-color: var(--warning); }
+        .stat-box span { display: block; font-size: 1.5rem; font-weight: 800; margin-top: 5px; }
+
+        .alert { 
+            background: #fef3c7; color: #b45309; padding: 12px; border-radius: 8px; 
+            font-size: 0.85rem; text-align: center; margin-bottom: 15px; 
+            border-right: 4px solid var(--warning);
+        }
+        .alert.success {
+            background: #dcfce7; color: #166534; border-color: var(--success);
+        }
+        .alert.error {
+            background: #fee2e2; color: #991b1b; border-color: var(--danger);
+        }
+        .hidden { display: none !important; }
+        
+        .log-area {
+            background: #1e293b; color: #e2e8f0; padding: 12px; border-radius: 8px;
+            font-family: 'Consolas', monospace; font-size: 0.75rem; 
+            max-height: 140px; overflow-y: auto; margin-top: 15px; 
+            direction: ltr; text-align: left; line-height: 1.4;
+        }
+        .log-entry { padding: 2px 0; border-bottom: 1px solid #334155; }
+        .log-entry:last-child { border-bottom: none; }
+        .log-info { color: #94a3b8; }
+        .log-success { color: #22c55e; }
+        .log-error { color: #ef4444; }
+        .log-warn { color: #f59e0b; }
+
+        .section { margin: 20px 0; }
+        .section.hidden { display: none; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>📡 Alrabut FTTH</h1>
+    <div class="subtitle">النظام المدمج: تسجيل الدخول ➜ استخراج الأرقام ➜ فحص الأسعار ➜ تصدير النتائج</div>
+
+    <!-- === قسم تسجيل الدخول === -->
+    <div id="loginSection" class="section">
+        <h2>🔐 تسجيل الدخول</h2>
+        <div class="grid">
+            <div class="form-group">
+                <label>👤 اسم المستخدم</label>
+                <input type="text" id="username" placeholder="Username">
+            </div>
+            <div class="form-group">
+                <label>🔒 كلمة المرور</label>
+                <input type="password" id="password" placeholder="Password">
+            </div>
+            <div class="form-group">
+                <label>⏱️ تأخير الطلب (ms)</label>
+                <input type="number" id="delay" value="4000" min="1000">
+            </div>
+            <div class="form-group">
+                <label>🔄 الحد الأقصى للمحاولات</label>
+                <input type="number" id="retries" value="3" min="1" max="10">
+            </div>
+        </div>
+        <button id="loginBtn" class="btn btn-primary">🔓 تسجيل الدخول</button>
+        <div id="loginStatus" style="text-align: center; margin-top: 10px; font-weight: 500; color: #475569; min-height: 24px; font-size: 0.85rem; padding: 0 10px;"></div>
+    </div>
+
+    <!-- === قسم المعالجة (مخفي حتى التسجيل) === -->
+    <div id="processingSection" class="section hidden">
+        <div class="alert alert-success">
+            ✅ تم التسجيل بنجاح! يمكنك الآن تحميل ملف CSV ومعالجة الأرقام
+        </div>
+
+        <h2>📞 معالجة الأرقام</h2>
+        <div class="grid">
+            <div class="form-group">
+                <label>📞 اسم عمود الهاتف في الملف</label>
+                <input type="text" id="phoneCol" value="number" placeholder="مثال: number أو phone">
+            </div>
+        </div>
+
+        <div class="drop-zone" id="dropZone">
+            📁 اسحب ملف الـ <strong>CSV</strong> هنا أو انقر للاختيار
+            <input type="file" id="fileInput" accept=".csv">
+        </div>
+
+        <div class="progress-container" id="progressSection">
+            <div class="progress-bar"><div class="progress-fill" id="progressBar"></div></div>
+            <div class="status-text" id="statusText">جاري التحميل...</div>
+            <div class="stats">
+                <div class="stat-box">🔄 المعالج<span id="cntProcessed">0</span></div>
+                <div class="stat-box success">✅ ناجح<span id="cntSuccess">0</span></div>
+                <div class="stat-box error">❌ غير موجود<span id="cntFailed">0</span></div>
+                <div class="stat-box warning">⚠️ أخطاء تقنية<span id="cntErrors">0</span></div>
+            </div>
+            <div class="log-area" id="logArea"></div>
+        </div>
+
+        <button id="startBtn" class="btn btn-primary" disabled>🚀 بدء المعالجة الشاملة</button>
+        <button id="downloadBtn" class="btn btn-success hidden">⬇️ تحميل ملف النتائج (CSV)</button>
+        <button id="logoutBtn" class="btn btn-danger">🚪 تسجيل الخروج</button>
+    </div>
+</div>
+
+<script>
+    // === المتغيرات العامة ===
+    let csvData = [];
+    let finalResults = [];
+    let isProcessing = false;
+    let authToken = null;
+
+    // === عناصر DOM ===
+    const loginSection = document.getElementById('loginSection');
+    const processingSection = document.getElementById('processingSection');
+    const usernameInput = document.getElementById('username');
+    const passwordInput = document.getElementById('password');
+    const loginBtn = document.getElementById('loginBtn');
+    const logoutBtn = document.getElementById('logoutBtn');
+    const loginStatus = document.getElementById('loginStatus');
+
+    const dropZone = document.getElementById('dropZone');
+    const fileInput = document.getElementById('fileInput');
+    const startBtn = document.getElementById('startBtn');
+    const downloadBtn = document.getElementById('downloadBtn');
+    const progressSection = document.getElementById('progressSection');
+    const progressBar = document.getElementById('progressBar');
+    const statusText = document.getElementById('statusText');
+    const logArea = document.getElementById('logArea');
+    const cntProcessed = document.getElementById('cntProcessed');
+    const cntSuccess = document.getElementById('cntSuccess');
+    const cntFailed = document.getElementById('cntFailed');
+    const cntErrors = document.getElementById('cntErrors');
+
+    // === أحداث تسجيل الدخول ===
+    loginBtn.addEventListener('click', async () => {
+        const username = usernameInput.value.trim();
+        const password = passwordInput.value.trim();
+
+        if (!username || !password) {
+            loginStatus.textContent = '❌ يرجى إدخال اسم المستخدم وكلمة المرور';
+            loginStatus.style.color = '#dc2626';
+            return;
+        }
+
+        loginBtn.disabled = true;
+        loginStatus.textContent = '⏳ جاري التسجيل ومحاولة الحصول على التوكن...';
+        loginStatus.style.color = '#475569';
+
+        try {
+            const response = await fetch('https://admin.alrabut.com/back/api/login', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify({ username, password })
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                const errorDetail = data.message || data.error || response.statusText;
+                throw new Error(`خطأ ${response.status}: ${errorDetail}`);
+            }
+
+            const extractedToken = data.token || (data.data && data.data.token) || data.access_token || (data.data && data.data.access_token);
+
+            if (extractedToken) {
+                authToken = `Bearer ${extractedToken}`;
+                loginStatus.textContent = `✅ تم التسجيل بنجاح! مرحباً ${username}`;
+                loginStatus.style.color = '#16a34a';
+
+                loginSection.classList.add('hidden');
+                processingSection.classList.remove('hidden');
+            } else {
+                throw new Error('تم تسجيل الدخول ولكن لم يتم العثور على مفتاح التوكن في استجابة الخادم.');
+            }
+        } catch (err) {
+            loginStatus.textContent = `❌ ${err.message}`;
+            loginStatus.style.color = '#dc2626';
+        } finally {
+            loginBtn.disabled = false;
+        }
+    });
+
+    // === أحداث تسجيل الخروج ===
+    logoutBtn.addEventListener('click', () => {
+        authToken = null;
+        csvData = [];
+        finalResults = [];
+        isProcessing = false;
+        usernameInput.value = '';
+        passwordInput.value = '';
+        loginStatus.textContent = '';
+        logArea.innerHTML = '';
+        progressBar.style.width = '0%';
+        progressSection.style.display = 'none';
+        downloadBtn.classList.add('hidden');
+        startBtn.disabled = true;
+        loginSection.classList.remove('hidden');
+        processingSection.classList.add('hidden');
+    });
+
+    // === أحداث السحب والإفلات ===
+    dropZone.addEventListener('click', () => fileInput.click());
+    dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+    dropZone.addEventListener('drop', e => {
+        e.preventDefault();
+        dropZone.classList.remove('dragover');
+        if (e.dataTransfer.files.length) loadCSV(e.dataTransfer.files[0]);
+    });
+
+    fileInput.addEventListener('change', e => {
+        if (e.target.files.length) loadCSV(e.target.files[0]);
+    });
+
+    function loadCSV(file) {
+        Papa.parse(file, {
+            header: true,
+            skipEmptyLines: true,
+            complete: (results) => {
+                if (!results.data || results.data.length === 0) {
+                    log('❌ الملف فارغ أو تالف', 'error');
+                    return;
+                }
+                const cleanedData = results.data.map(row => {
+                    const cleanRow = {};
+                    for (const [key, value] of Object.entries(row)) {
+                        cleanRow[key.trim()] = value;
+                    }
+                    return cleanRow;
+                });
+                csvData = cleanedData;
+                startBtn.disabled = !csvData.length;
+                const headers = Object.keys(cleanedData[0] || {});
+                log(`✅ تم تحميل ${csvData.length} صف | الأعمدة: ${headers.join(', ')}`, 'success');
+            },
+            error: (err) => {
+                log(`❌ خطأ في تحميل الملف: ${err.message}`, 'error');
+            }
+        });
+    }
+
+    function log(msg, type = 'info') {
+        const entry = document.createElement('div');
+        entry.className = `log-entry log-${type}`;
+        entry.textContent = `[${new Date().toLocaleTimeString('ar-SA')}] ${msg}`;
+        logArea.appendChild(entry);
+        logArea.scrollTop = logArea.scrollHeight;
+    }
+
+    // === بدء المعالجة الشاملة ===
+    startBtn.addEventListener('click', async () => {
+        if (!csvData.length || !authToken || isProcessing) return;
+        
+        isProcessing = true;
+        startBtn.disabled = true;
+        downloadBtn.classList.add('hidden');
+        progressSection.style.display = 'block';
+        finalResults = [];
+        logArea.innerHTML = '';
+        
+        const phoneCol = document.getElementById('phoneCol').value.trim();
+        const baseDelay = parseInt(document.getElementById('delay').value);
+        const maxRetries = parseInt(document.getElementById('retries').value);
+
+        log(`🚀 بدء المعالجة لـ ${csvData.length} رقم...`, 'info');
+        
+        let processed = 0, success = 0, failed = 0, errors = 0;
+        const total = csvData.length;
+
+        for (const row of csvData) {
+            if (!isProcessing) break;
+            
+            const phone = row[phoneCol]?.toString().trim();
+            if (!phone) {
+                processed++;
+                updateUI(processed, success, failed, errors, total, `⏭️ تخطي صف فارغ`);
+                continue;
+            }
+
+            statusText.textContent = `🔍 جاري معالجة: ${phone}`;
+            
+            let extractResult = null;
+            let id = null;
+            let name = '-';
+            let expire = '-';
+            let price = '-';
+            let errorMsg = '';
+            let userppoe = '-';
+            let userfdt = '-';
+            let userfat = '-';
+            
+            try {
+                extractResult = await fetchWithRetry(() => extractID(phone, authToken), maxRetries, baseDelay);
+            } catch (err) {
+                log(`❌ فشل استخراج ID لـ ${phone}: ${err.message}`, 'error');
+                errors++;
+            }
+            
+            if (extractResult && (extractResult.status === 200 || extractResult.success) && Array.isArray(extractResult.data) && extractResult.data.length > 0) {
+                const userData = extractResult.data[0];
+                id = userData.id;
+                name = userData.name || '-';
+                expire = userData.expire || '-';
+                userppoe = userData.username || '-';
+                userfdt = userData.zone || userData.fdt || '-';
+                userfat = userData.fat || '-';
+
+                log(`✅ وجد: ${name} | ID: ${id} | Exp: ${expire}`, 'success');
+            } else {
+                errorMsg = extractResult?.message || "الرقم غير مسجل";
+                log(`⚠️ ${phone}: ${errorMsg}`, 'warn');
+            }
+
+            if (id) {
+                statusText.textContent = `💰 جاري فحص سعر ID: ${id}`;
+                try {
+                    const priceResult = await fetchWithRetry(() => checkPrice(id, authToken), maxRetries, baseDelay);
+                    if (priceResult?.price !== undefined && priceResult?.price !== null) {
+                        price = priceResult.price;
+                        log(`💰 السعر لـ ${id}: ${price}`, 'success');
+                    } else {
+                        errorMsg = priceResult.error || "خطأ في السعر";
+                        log(`⚠️ خطأ في السعر لـ ${id}: ${errorMsg}`, 'warn');
+                    }
+                } catch (err) {
+                    log(`❌ فشل فحص السعر لـ ${id}: ${err.message}`, 'error');
+                    errorMsg = err.message;
+                }
+            }
+
+            const isSuccess = id && price !== '-' && !errorMsg.includes('لا يمكن');
+            finalResults.push({ 
+                phone, 
+                name,
+                id: id || 'غير موجود', 
+                expire,
+                userppoe,
+                userfdt,
+                userfat,
+                price, 
+                status: isSuccess ? 'ناجح' : 'فاشل',
+                error: errorMsg || ''
+            });
+            
+            processed++;
+            if (isSuccess) success++;
+            else if (errorMsg && (errorMsg.includes('429') || errorMsg.includes('network'))) errors++;
+            else failed++;
+            
+            updateUI(processed, success, failed, errors, total, isSuccess ? `✅ اكتمل: ${phone}` : `❌ فشل: ${phone}`);
+            if (processed < total) await new Promise(r => setTimeout(r, baseDelay / 2));
+        }
+
+        statusText.textContent = '🎉 اكتملت المعالجة!';
+        isProcessing = false;
+        startBtn.disabled = false;
+        downloadBtn.classList.remove('hidden');
+    });
+
+    function updateUI(p, s, f, e, total, text) {
+        cntProcessed.textContent = p;
+        cntSuccess.textContent = s;
+        cntFailed.textContent = f;
+        cntErrors.textContent = e;
+        progressBar.style.width = `${(p / total) * 100}%`;
+        statusText.textContent = text;
+    }
+
+    async function fetchWithRetry(fn, maxRetries, baseDelay) {
+        let lastError;
+        for (let attempt = 1; attempt <= maxRetries; attempt++) {
+            try {
+                return await fn();
+            } catch (err) {
+                lastError = err;
+                if (err.message && (err.message.includes('401') || err.message.includes('403'))) throw new Error("انتهت الجلسة");
+                await new Promise(r => setTimeout(r, (baseDelay / 2) * attempt));
+            }
+        }
+        throw lastError;
+    }
+
+    async function extractID(phone, token) {
+        const response = await fetch('https://admin.alrabut.com/back/api/ftth_contacts_alist', {
+            method: 'POST',
+            headers: {
+                'Authorization': token,
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify({ search: phone })
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.message || `HTTP ${response.status}`);
+        return data;
+    }
+
+    async function checkPrice(id, token, maxRetries = 3, retryCount = 0) {
+        const url = 'https://admin.alrabut.com/back/api/ftth_contacts/check_price';
+        const payload = { profile: "FIBER 35", id: id, commitment_period: "3", price: 0, profile_old: "FIBER 35", payment_type: null };
+
+        try {
+            const resp = await fetch(url, {
+                method: 'POST',
+                headers: { 'Authorization': token, 'Content-Type': 'application/json', 'Accept': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            if (resp.status === 429 && retryCount < maxRetries) {
+                await new Promise(r => setTimeout(r, 3000 * (retryCount + 1)));
+                return checkPrice(id, token, maxRetries, retryCount + 1);
+            }
+
+            const json = await resp.json();
+            if (resp.status === 200 && (json.status === 200 || json.success)) {
+                return { price: json.data, error: null };
+            } else if (resp.status === 422 || json.status === 422) {
+                return { price: null, error: json.message?.note?.[0] || json.message || "لا يمكن التفعيل" };
+            } else {
+                throw new Error(json.message || `Error ${resp.status}`);
+            }
+        } catch (err) {
+            if (retryCount < maxRetries && !err.message.includes("422")) {
+                await new Promise(r => setTimeout(r, 1000));
+                return checkPrice(id, token, maxRetries, retryCount + 1);
+            }
+            throw err;
+        }
+    }
+
+    downloadBtn.addEventListener('click', () => {
+        const csv = Papa.unparse(finalResults);
+        const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = `Alrabut_Full_Results_${new Date().toISOString().slice(0,10)}.csv`;
+        link.click();
+    });
+
+    window.addEventListener('load', () => usernameInput.focus());
+</script>
+
+</body>
+</html>
